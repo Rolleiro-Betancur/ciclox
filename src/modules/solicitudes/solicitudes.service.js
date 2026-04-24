@@ -1,6 +1,7 @@
 // src/modules/solicitudes/solicitudes.service.js
 const db = require('../../config/database');
 const logger = require('../../config/logger');
+const notificacionesService = require('../notificaciones/notificaciones.service');
 
 // ── Helper: error operacional ─────────────────────────────────────────────────
 const opError = (message, code, statusCode) => {
@@ -468,6 +469,27 @@ const aceptarSolicitud = async (solicitudId, empresaId, datos) => {
     );
 
     await client.query('COMMIT');
+
+    // ── Notificar al ciudadano ──
+    try {
+      const { rows: solInfo } = await db.query(
+        'SELECT ciudadano_id FROM solicitudes_recoleccion WHERE id = $1',
+        [solicitudId]
+      );
+      if (solInfo[0]) {
+        await notificacionesService.crearNotificacion({
+          usuario_id: solInfo[0].ciudadano_id,
+          titulo: '¡Tu solicitud fue aceptada!',
+          mensaje: 'Ya estamos preparando tu recolección. Revisa los detalles en la app.',
+          tipo: 'SOLICITUD_ACEPTADA',
+          referencia_id: solicitudId,
+          referencia_tipo: 'solicitud',
+        });
+      }
+    } catch (err) {
+      logger.error('Error enviando notificación (aceptarSolicitud):', err.message);
+    }
+
     return updated[0];
   } catch (err) {
     await client.query('ROLLBACK');
@@ -566,6 +588,22 @@ const marcarEnTransito = async (solicitudId, empresaId, datos) => {
     );
   }
 
+  // ── Notificar al ciudadano ──
+  try {
+    await notificacionesService.crearNotificacion({
+      usuario_id: sol.ciudadano_id,
+      titulo: '¡El recolector está en camino!',
+      mensaje: datos.tiempo_estimado_minutos 
+        ? `Llegará en aproximadamente ${datos.tiempo_estimado_minutos} minutos.`
+        : 'Sigue la ubicación en tiempo real desde el mapa.',
+      tipo: 'SOLICITUD_EN_TRANSITO',
+      referencia_id: solicitudId,
+      referencia_tipo: 'solicitud',
+    });
+  } catch (err) {
+    logger.error('Error enviando notificación (marcarEnTransito):', err.message);
+  }
+
   return {
     id: Number(solicitudId),
     estado: 'EN_TRANSITO',
@@ -644,6 +682,20 @@ const marcarRecolectada = async (solicitudId, empresaId, datos) => {
     // El trigger trg_actualizar_puntos actualiza puntos_usuario automáticamente
 
     await client.query('COMMIT');
+
+    // ── Notificar al ciudadano ──
+    try {
+      await notificacionesService.crearNotificacion({
+        usuario_id: sol.ciudadano_id,
+        titulo: '¡Dispositivos recolectados!',
+        mensaje: `Has ganado ${puntos_otorgados} puntos por tu aporte al medio ambiente.`,
+        tipo: 'SOLICITUD_RECOLECTADA',
+        referencia_id: solicitudId,
+        referencia_tipo: 'solicitud',
+      });
+    } catch (err) {
+      logger.error('Error enviando notificación (marcarRecolectada):', err.message);
+    }
 
     return {
       id: Number(solicitudId),

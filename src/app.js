@@ -15,14 +15,14 @@ const puntosRecoleccionRoutes = require('./modules/puntos-recoleccion/puntos-rec
 const recolectoresRoutes    = require('./modules/recolectores/recolectores.routes');
 const { router: solicitudesRoutes, empresaRouter: empresaSolicitudesRoutes } =
   require('./modules/solicitudes/solicitudes.routes');
-// Módulos pendientes de implementar:
-const puntosRoutes       = require('./modules/puntos/puntos.routes');
-const recompensasRoutes  = require('./modules/recompensas/recompensas.routes');
-// const canjesRoutes       = require('./modules/canjes/canjes.routes');
-// const trazabilidadRoutes = require('./modules/trazabilidad/trazabilidad.routes');
-// const notificacionesRoutes = require('./modules/notificaciones/notificaciones.routes');
-// const reciclajesRoutes   = require('./modules/reciclajes/reciclajes.routes');
-// const reportesRoutes     = require('./modules/reportes/reportes.routes');
+const puntosRoutes          = require('./modules/puntos/puntos.routes');
+const recompensasRoutes     = require('./modules/recompensas/recompensas.routes');
+const canjesRoutes          = require('./modules/canjes/canjes.routes');
+const { router: trazabilidadRoutes, empresaRouter: empresaTrazabilidadRoutes } =
+  require('./modules/trazabilidad/trazabilidad.routes');
+const notificacionesRoutes  = require('./modules/notificaciones/notificaciones.routes');
+const reciclajesRoutes      = require('./modules/reciclajes/reciclajes.routes');
+const reportesRoutes        = require('./modules/reportes/reportes.routes');
 
 const app = express();
 
@@ -52,14 +52,14 @@ app.use('/api/puntos-recoleccion',      puntosRecoleccionRoutes);
 app.use('/api/solicitudes',             solicitudesRoutes);
 app.use('/api/empresa/recolectores',    recolectoresRoutes);
 app.use('/api/empresa/solicitudes',     empresaSolicitudesRoutes);
-// Módulos pendientes de implementar:
-app.use('/api/puntos',                puntosRoutes);
-app.use('/api/recompensas',           recompensasRoutes);
-// app.use('/api/canjes',                canjesRoutes);
-// app.use('/api/trazabilidad',          trazabilidadRoutes);
-// app.use('/api/notificaciones',        notificacionesRoutes);
-// app.use('/api/empresa/reciclajes',    reciclajesRoutes);
-// app.use('/api/empresa/reportes',      reportesRoutes);
+app.use('/api/puntos',                  puntosRoutes);
+app.use('/api/recompensas',             recompensasRoutes);
+app.use('/api/canjes',                  canjesRoutes);
+app.use('/api/trazabilidad',            trazabilidadRoutes);
+app.use('/api/empresa/trazabilidad',    empresaTrazabilidadRoutes);
+app.use('/api/notificaciones',          notificacionesRoutes);
+app.use('/api/empresa/reciclajes',      reciclajesRoutes);
+app.use('/api/empresa/reportes',        reportesRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
