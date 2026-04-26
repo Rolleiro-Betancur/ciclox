@@ -22,6 +22,12 @@ router.get('/dispositivo/:dispositivoId', ctrl.obtenerMovimientos);
  */
 router.get('/solicitud/:solicitudId/ubicacion', ctrl.obtenerUbicacion);
 
+/**
+ * GET /api/trazabilidad/solicitud/:solicitudId
+ * Historial de movimientos de una solicitud.
+ */
+router.get('/solicitud/:solicitudId', ctrl.obtenerMovimientosSolicitud);
+
 // ── Router empresa: /api/empresa/trazabilidad ───────────────────────────────
 const empresaRouter = Router();
 empresaRouter.use(auth, checkRole('EMPRESA'));

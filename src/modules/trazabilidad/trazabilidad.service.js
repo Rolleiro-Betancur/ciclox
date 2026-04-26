@@ -70,6 +70,49 @@ const obtenerMovimientosDispositivo = async (dispositivoId, userId, rol) => {
 };
 
 /**
+ * Obtener historial de movimientos asociados a una solicitud de recolección.
+ */
+const obtenerMovimientosSolicitud = async (solicitudId, userId, rol) => {
+  // 1. Verificar la solicitud
+  const { rows: solRows } = await db.query(
+    `SELECT id, ciudadano_id FROM solicitudes_recoleccion WHERE id = $1`,
+    [solicitudId],
+  );
+
+  const sol = solRows[0];
+  if (!sol) {
+    throw opError('Solicitud no encontrada', 'NOT_FOUND', 404);
+  }
+
+  // Verificar acceso
+  if (rol === 'USUARIO' && Number(sol.ciudadano_id) !== Number(userId)) {
+    throw opError('No autorizado para esta solicitud', 'FORBIDDEN', 403);
+  }
+
+  // 2. Obtener movimientos asociados a esta solicitud
+  const { rows: movimientos } = await db.query(
+    `SELECT
+       m.id::int,
+       m.tipo,
+       m.descripcion,
+       m.ubicacion_origen,
+       m.ubicacion_destino,
+       m.latitud,
+       m.longitud,
+       m.evidencia_url,
+       m.fecha,
+       u.nombre AS responsable_nombre
+     FROM movimientos_raee m
+     LEFT JOIN usuarios u ON u.id = m.responsable_id
+     WHERE m.solicitud_id = $1
+     ORDER BY m.fecha ASC`,
+    [solicitudId],
+  );
+
+  return movimientos;
+};
+
+/**
  * Obtener ubicación en tiempo real del recolector para una solicitud EN_TRANSITO.
  * Busca el último movimiento de tipo EN_TRANSITO de la solicitud.
  */
@@ -260,6 +303,7 @@ const registrarMovimiento = async (empresaId, datos) => {
 
 module.exports = {
   obtenerMovimientosDispositivo,
+  obtenerMovimientosSolicitud,
   obtenerUbicacionRecolector,
   registrarMovimiento,
 };

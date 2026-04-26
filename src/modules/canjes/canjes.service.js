@@ -1,6 +1,6 @@
 // src/modules/canjes/canjes.service.js
 const db = require('../../config/database');
-const { generarCodigoAleatorio } = require('../../utils/codigo');
+const { generarCodigo } = require('../../utils/codigo');
 const { generarQR } = require('../../utils/qr');
 
 const opError = (message, code, statusCode) => {
@@ -55,7 +55,7 @@ const crearCanje = async (usuarioId, recompensaId) => {
     }
 
     // 4. Generar código y QR
-    const codigoTexto = generarCodigoAleatorio(6);
+    const codigoTexto = generarCodigo(6);
     const codigoQr = await generarQR(codigoTexto);
 
     // 5. Crear canje (vigencia 30 minutos)

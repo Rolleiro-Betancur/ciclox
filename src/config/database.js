@@ -9,6 +9,7 @@ const pool = new Pool({
   database: env.DB_NAME,
   user: env.DB_USER,
   password: env.DB_PASSWORD,
+  ssl: { rejectUnauthorized: false },
   max: 20,                  // máximo de conexiones en el pool
   idleTimeoutMillis: 30000, // desconectar clientes inactivos después de 30s
   connectionTimeoutMillis: 2000,

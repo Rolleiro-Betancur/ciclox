@@ -40,26 +40,45 @@ const obtenerDispositivos = async (ciudadanoId, { estado, tipo }) => {
 
 // ── Crear Dispositivo ────────────────────────────────────────────────────────
 const crearDispositivo = async (ciudadanoId, data) => {
-  const { rows } = await db.query(
-    `INSERT INTO dispositivos (
-      ciudadano_id, tipo, marca, modelo, serial_numero, 
-      descripcion, estado_fisico, foto_url, anio_fabricacion
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-    RETURNING id, tipo, marca, estado, estado_fisico`,
-    [
-      ciudadanoId,
-      data.tipo,
-      data.marca,
-      data.modelo || null,
-      data.serial_numero || null,
-      data.descripcion || null,
-      data.estado_fisico || 'ENCIENDE',
-      data.foto_url || null,
-      data.anio_fabricacion || 0,
-    ]
-  );
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+    const { rows } = await client.query(
+      `INSERT INTO dispositivos (
+        ciudadano_id, tipo, marca, modelo, serial_numero, 
+        descripcion, estado_fisico, foto_url, anio_fabricacion
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING id, tipo, marca, estado, estado_fisico`,
+      [
+        ciudadanoId,
+        data.tipo,
+        data.marca,
+        data.modelo || null,
+        data.serial_numero || null,
+        data.descripcion || null,
+        data.estado_fisico || 'ENCIENDE',
+        data.foto_url || null,
+        data.anio_fabricacion || 0,
+      ]
+    );
 
-  return rows[0];
+    const dispositivo = rows[0];
+
+    // Registrar movimiento inicial en trazabilidad
+    await client.query(
+      `INSERT INTO movimientos_raee (dispositivo_id, responsable_id, tipo, descripcion)
+       VALUES ($1, $2, 'REGISTRO', 'Dispositivo registrado por el ciudadano')`,
+      [dispositivo.id, ciudadanoId]
+    );
+
+    await client.query('COMMIT');
+    return dispositivo;
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
 };
 
 // ── Obtener Detalle de Dispositivo ───────────────────────────────────────────

@@ -30,6 +30,20 @@ const obtenerUbicacion = async (req, res, next) => {
   }
 };
 
+// ── GET /api/trazabilidad/solicitud/:solicitudId ─────────────────────────────
+const obtenerMovimientosSolicitud = async (req, res, next) => {
+  try {
+    const data = await trazabilidadService.obtenerMovimientosSolicitud(
+      req.params.solicitudId,
+      req.user.id,
+      req.user.rol,
+    );
+    return success(res, data);
+  } catch (err) {
+    next(err);
+  }
+};
+
 // ── POST /api/empresa/trazabilidad ──────────────────────────────────────────
 const registrarMovimiento = async (req, res, next) => {
   try {
@@ -45,6 +59,7 @@ const registrarMovimiento = async (req, res, next) => {
 
 module.exports = {
   obtenerMovimientos,
+  obtenerMovimientosSolicitud,
   obtenerUbicacion,
   registrarMovimiento,
 };
