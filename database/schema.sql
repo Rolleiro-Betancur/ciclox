@@ -434,6 +434,22 @@ CREATE INDEX idx_reportes_empresa ON reportes_ambientales(empresa_id);
 CREATE INDEX idx_reportes_periodo ON reportes_ambientales(periodo_inicio, periodo_fin);
 
 
+	-- Modificar el ENUM rol_usuario existente
+ALTER TYPE rol_usuario ADD VALUE 'COLABORADOR';
+
+
+CREATE TABLE colaboradores (
+    id                  BIGSERIAL   PRIMARY KEY,
+    usuario_id          BIGINT      NOT NULL UNIQUE REFERENCES usuarios(id),  -- autenticación aquí
+    empresa_id          BIGINT      NOT NULL REFERENCES usuarios(id),
+    tipo_documento      tipo_documento_identidad NOT NULL,
+    numero_documento    VARCHAR(30) NOT NULL,
+    activo              BOOLEAN     NOT NULL DEFAULT TRUE,
+    fecha_registro      TIMESTAMP   NOT NULL DEFAULT NOW(),
+    fecha_actualizacion TIMESTAMP   NOT NULL DEFAULT NOW()
+);
+
+
 -- =====================================================
 -- TRIGGERS: auto-actualizar fecha_actualizacion
 -- =====================================================

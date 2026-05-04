@@ -23,6 +23,8 @@ const { router: trazabilidadRoutes, empresaRouter: empresaTrazabilidadRoutes } =
 const notificacionesRoutes  = require('./modules/notificaciones/notificaciones.routes');
 const reciclajesRoutes      = require('./modules/reciclajes/reciclajes.routes');
 const reportesRoutes        = require('./modules/reportes/reportes.routes');
+const { empresaRouter: empresaColaboradoresRoutes, colaboradorRouter: colaboradoresRoutes } =
+  require('./modules/colaboradores/colaboradores.routes');
 
 const app = express();
 
@@ -60,6 +62,8 @@ app.use('/api/empresa/trazabilidad',    empresaTrazabilidadRoutes);
 app.use('/api/notificaciones',          notificacionesRoutes);
 app.use('/api/empresa/reciclajes',      reciclajesRoutes);
 app.use('/api/empresa/reportes',        reportesRoutes);
+app.use('/api/empresa/colaboradores',   empresaColaboradoresRoutes);
+app.use('/api/colaboradores',           colaboradoresRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
