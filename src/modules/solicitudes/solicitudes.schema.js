@@ -75,7 +75,7 @@ const crearSolicitudSchema = z
     }
   });
 
-// ── Calificar recolector (USUARIO) ────────────────────────────────────────────
+// ── Calificar colaborador (USUARIO) ────────────────────────────────────────────
 const calificarSchema = z.object({
   estrellas: z
     .number({ required_error: 'Las estrellas son requeridas' })
@@ -87,10 +87,11 @@ const calificarSchema = z.object({
 
 // ── Aceptar solicitud (EMPRESA) ───────────────────────────────────────────────
 const aceptarSolicitudSchema = z.object({
-  recolector_id: z
-    .number({ required_error: 'recolector_id es requerido' })
+  colaborador_id: z
+    .number()
     .int()
-    .positive(),
+    .positive()
+    .optional(),
   hora_estimada_inicio: z
     .string({ required_error: 'hora_estimada_inicio es requerida' })
     .regex(/^\d{2}:\d{2}$/, 'Formato HH:MM'),
@@ -110,8 +111,8 @@ const rechazarSolicitudSchema = z.object({
 
 // ── Marcar en tránsito (EMPRESA) ──────────────────────────────────────────────
 const enTransitoSchema = z.object({
-  latitud_recolector: z.number().optional(),
-  longitud_recolector: z.number().optional(),
+  latitud_colaborador: z.number().optional(),
+  longitud_colaborador: z.number().optional(),
   tiempo_estimado_minutos: z.number().int().positive().optional(),
 });
 

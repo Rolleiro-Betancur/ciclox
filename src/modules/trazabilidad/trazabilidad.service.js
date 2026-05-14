@@ -113,10 +113,10 @@ const obtenerMovimientosSolicitud = async (solicitudId, userId, rol) => {
 };
 
 /**
- * Obtener ubicación en tiempo real del recolector para una solicitud EN_TRANSITO.
+ * Obtener ubicación en tiempo real del colaborador para una solicitud EN_TRANSITO.
  * Busca el último movimiento de tipo EN_TRANSITO de la solicitud.
  */
-const obtenerUbicacionRecolector = async (solicitudId, userId, rol) => {
+const obtenerUbicacionColaborador = async (solicitudId, userId, rol) => {
   // 1. Verificar la solicitud
   const { rows: solRows } = await db.query(
     `SELECT
@@ -150,7 +150,7 @@ const obtenerUbicacionRecolector = async (solicitudId, userId, rol) => {
     );
   }
 
-  // 2. Obtener última posición conocida del recolector
+  // 2. Obtener última posición conocida del colaborador
   const { rows: movRows } = await db.query(
     `SELECT latitud, longitud, descripcion, fecha
      FROM movimientos_raee
@@ -170,8 +170,8 @@ const obtenerUbicacionRecolector = async (solicitudId, userId, rol) => {
   }
 
   return {
-    latitud_recolector: mov ? mov.latitud : null,
-    longitud_recolector: mov ? mov.longitud : null,
+    latitud_colaborador: mov ? mov.latitud : null,
+    longitud_colaborador: mov ? mov.longitud : null,
     latitud_destino: sol.latitud_destino || null,
     longitud_destino: sol.longitud_destino || null,
     tiempo_estimado_minutos,
@@ -304,6 +304,6 @@ const registrarMovimiento = async (empresaId, datos) => {
 module.exports = {
   obtenerMovimientosDispositivo,
   obtenerMovimientosSolicitud,
-  obtenerUbicacionRecolector,
+  obtenerUbicacionColaborador,
   registrarMovimiento,
 };

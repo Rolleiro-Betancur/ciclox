@@ -106,6 +106,19 @@ const calificar = async (req, res, next) => {
   }
 };
 
+// ── Helper: obtener empresa y colaborador ───────────────────────────────────────
+const db = require('../../config/database');
+const getRoleIds = async (user) => {
+  if (user.rol === 'EMPRESA') {
+    return { empresaId: user.id, colaboradorId: null };
+  } else if (user.rol === 'COLABORADOR') {
+    const { rows } = await db.query('SELECT id, empresa_id FROM colaboradores WHERE usuario_id = $1', [user.id]);
+    if (rows.length === 0) throw error(null, 'NOT_FOUND', 'Colaborador no encontrado', 404);
+    return { empresaId: rows[0].empresa_id, colaboradorId: rows[0].id };
+  }
+  throw error(null, 'FORBIDDEN', 'Rol no permitido', 403);
+};
+
 // ═════════════════════════════════════════════════════════════════════════════
 // EMPRESA
 // ═════════════════════════════════════════════════════════════════════════════
@@ -117,7 +130,7 @@ const calificar = async (req, res, next) => {
  */
 const listarEmpresa = async (req, res, next) => {
   try {
-    const empresaId = req.user.id;
+    const { empresaId } = await getRoleIds(req.user);
     const page  = Math.max(1, parseInt(req.query.page, 10) || 1);
     const limit = Math.min(100, Math.max(1, parseInt(req.query.limit, 10) || 20));
     const { estado } = req.query;
@@ -142,14 +155,18 @@ const listarEmpresa = async (req, res, next) => {
 
 /**
  * PATCH /api/empresa/solicitudes/:id/aceptar
- * Acepta una solicitud y asigna recolector.
+ * Acepta una solicitud y asigna colaborador.
  */
 const aceptar = async (req, res, next) => {
   try {
     const solicitudId = parseId(req.params.id, res);
     if (!solicitudId) return;
 
-    const data = await service.aceptarSolicitud(solicitudId, req.user.id, req.body);
+    const { empresaId, colaboradorId } = await getRoleIds(req.user);
+    const datos = { ...req.body };
+    if (colaboradorId) datos.colaborador_id = colaboradorId;
+
+    const data = await service.aceptarSolicitud(solicitudId, empresaId, datos);
     return success(res, data);
   } catch (err) {
     logger.error('solicitudes.aceptar: %o', err);
@@ -166,9 +183,10 @@ const rechazar = async (req, res, next) => {
     const solicitudId = parseId(req.params.id, res);
     if (!solicitudId) return;
 
+    const { empresaId } = await getRoleIds(req.user);
     const data = await service.rechazarSolicitud(
       solicitudId,
-      req.user.id,
+      empresaId,
       req.body.motivo_rechazo,
     );
     return success(res, data);
@@ -180,14 +198,15 @@ const rechazar = async (req, res, next) => {
 
 /**
  * PATCH /api/empresa/solicitudes/:id/en-transito
- * Marca que el recolector está en camino.
+ * Marca que el colaborador está en camino.
  */
 const enTransito = async (req, res, next) => {
   try {
     const solicitudId = parseId(req.params.id, res);
     if (!solicitudId) return;
 
-    const data = await service.marcarEnTransito(solicitudId, req.user.id, req.body);
+    const { empresaId } = await getRoleIds(req.user);
+    const data = await service.marcarEnTransito(solicitudId, empresaId, req.body);
     return success(res, data);
   } catch (err) {
     logger.error('solicitudes.enTransito: %o', err);
@@ -204,7 +223,8 @@ const recolectada = async (req, res, next) => {
     const solicitudId = parseId(req.params.id, res);
     if (!solicitudId) return;
 
-    const data = await service.marcarRecolectada(solicitudId, req.user.id, req.body);
+    const { empresaId } = await getRoleIds(req.user);
+    const data = await service.marcarRecolectada(solicitudId, empresaId, req.body);
     return success(res, data);
   } catch (err) {
     logger.error('solicitudes.recolectada: %o', err);

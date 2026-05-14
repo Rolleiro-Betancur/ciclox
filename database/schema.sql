@@ -15,6 +15,8 @@ CREATE TYPE tipo_dispositivo AS ENUM (
     'IMPRESORA', 'BATERIA', 'CARGADOR', 'ELECTRODOMESTICO', 'OTRO'
 );
 
+CREATE TYPE tipo_documento_identidad AS ENUM ('CC', 'CE', 'NIT', 'PASAPORTE');
+
 -- NUEVO: estado físico visible en la pantalla de selección de dispositivo
 CREATE TYPE estado_fisico_dispositivo AS ENUM (
     'ENCIENDE', 'DANIADO', 'ROTO', 'COMPLETO', 'INCOMPLETO'
@@ -193,7 +195,7 @@ CREATE TABLE solicitudes_recoleccion (
     ciudadano_id          BIGINT           NOT NULL REFERENCES usuarios(id),
     empresa_id            BIGINT           REFERENCES usuarios(id),
     punto_recoleccion_id  BIGINT           REFERENCES puntos_recoleccion(id),
-    recolector_id         BIGINT           REFERENCES recolectores(id),  -- NUEVO
+    colaborador_id        BIGINT           REFERENCES colaboradores(id),  -- NUEVO
     tipo_recoleccion      tipo_recoleccion NOT NULL DEFAULT 'DOMICILIO',
 
     -- Dirección de recogida (paso 2 del formulario)
@@ -223,7 +225,7 @@ CREATE TABLE solicitudes_recoleccion (
 CREATE INDEX idx_solicitudes_ciudadano ON solicitudes_recoleccion(ciudadano_id);
 CREATE INDEX idx_solicitudes_empresa   ON solicitudes_recoleccion(empresa_id);
 CREATE INDEX idx_solicitudes_estado    ON solicitudes_recoleccion(estado);
-CREATE INDEX idx_solicitudes_recolector ON solicitudes_recoleccion(recolector_id);
+CREATE INDEX idx_solicitudes_colaborador ON solicitudes_recoleccion(colaborador_id);
 
 
 -- NUEVO: tabla pivote que relaciona una solicitud con uno o más dispositivos
@@ -241,21 +243,21 @@ CREATE INDEX idx_sol_disp_dispositivo ON solicitud_dispositivos(dispositivo_id);
 
 
 -- =====================================================
--- CALIFICACIONES AL RECOLECTOR
+-- CALIFICACIONES AL COLABORADOR
 -- NUEVO: pantalla "¿Cómo fue tu experiencia?" con estrellas
 -- =====================================================
 
-CREATE TABLE calificaciones_recolector (
+CREATE TABLE calificaciones_colaborador (
     id              BIGSERIAL PRIMARY KEY,
     solicitud_id    BIGINT    NOT NULL UNIQUE REFERENCES solicitudes_recoleccion(id),
-    recolector_id   BIGINT    NOT NULL REFERENCES recolectores(id),
+    colaborador_id  BIGINT    NOT NULL REFERENCES colaboradores(id),
     ciudadano_id    BIGINT    NOT NULL REFERENCES usuarios(id),
     estrellas       INTEGER   NOT NULL CHECK (estrellas BETWEEN 1 AND 5),
     comentario      VARCHAR(500),
     fecha           TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_calificaciones_recolector ON calificaciones_recolector(recolector_id);
+CREATE INDEX idx_calificaciones_colaborador ON calificaciones_colaborador(colaborador_id);
 
 
 -- =====================================================
@@ -444,6 +446,8 @@ CREATE TABLE colaboradores (
     empresa_id          BIGINT      NOT NULL REFERENCES usuarios(id),
     tipo_documento      tipo_documento_identidad NOT NULL,
     numero_documento    VARCHAR(30) NOT NULL,
+    calificacion_promedio DOUBLE PRECISION NOT NULL DEFAULT 0,
+    total_calificaciones INTEGER    NOT NULL DEFAULT 0,
     activo              BOOLEAN     NOT NULL DEFAULT TRUE,
     fecha_registro      TIMESTAMP   NOT NULL DEFAULT NOW(),
     fecha_actualizacion TIMESTAMP   NOT NULL DEFAULT NOW()
@@ -503,27 +507,27 @@ CREATE TRIGGER trg_actualizar_puntos
 
 
 -- =====================================================
--- FUNCIÓN: actualizar calificación promedio del recolector
+-- FUNCIÓN: actualizar calificación promedio del colaborador
 -- =====================================================
 
-CREATE OR REPLACE FUNCTION actualizar_calificacion_recolector()
+CREATE OR REPLACE FUNCTION actualizar_calificacion_colaborador()
 RETURNS TRIGGER AS $$
 BEGIN
-    UPDATE recolectores SET
+    UPDATE colaboradores SET
         calificacion_promedio = (
             SELECT ROUND(AVG(estrellas)::numeric, 1)
-            FROM calificaciones_recolector
-            WHERE recolector_id = NEW.recolector_id
+            FROM calificaciones_colaborador
+            WHERE colaborador_id = NEW.colaborador_id
         ),
         total_calificaciones = (
-            SELECT COUNT(*) FROM calificaciones_recolector
-            WHERE recolector_id = NEW.recolector_id
+            SELECT COUNT(*) FROM calificaciones_colaborador
+            WHERE colaborador_id = NEW.colaborador_id
         )
-    WHERE id = NEW.recolector_id;
+    WHERE id = NEW.colaborador_id;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_calificacion_recolector
-    AFTER INSERT OR UPDATE ON calificaciones_recolector
-    FOR EACH ROW EXECUTE FUNCTION actualizar_calificacion_recolector();
+CREATE TRIGGER trg_calificacion_colaborador
+    AFTER INSERT OR UPDATE ON calificaciones_colaborador
+    FOR EACH ROW EXECUTE FUNCTION actualizar_calificacion_colaborador();

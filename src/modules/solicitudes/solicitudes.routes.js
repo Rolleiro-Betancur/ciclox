@@ -47,9 +47,9 @@ router.patch('/:id/cancelar', checkRole('USUARIO'), ctrl.cancelar);
  */
 router.post('/:id/calificacion', checkRole('USUARIO'), validate(calificarSchema), ctrl.calificar);
 
-// ── Router empresa: /api/empresa/solicitudes ─────────────────────────────────
+// ── Router empresa y colaborador: /api/empresa/solicitudes ─────────────────────────────────
 const empresaRouter = Router();
-empresaRouter.use(auth, checkRole('EMPRESA'));
+empresaRouter.use(auth, checkRole('EMPRESA', 'COLABORADOR'));
 
 /**
  * GET  /api/empresa/solicitudes
@@ -59,7 +59,7 @@ empresaRouter.get('/', ctrl.listarEmpresa);
 
 /**
  * PATCH /api/empresa/solicitudes/:id/aceptar
- * Aceptar solicitud y asignar recolector.
+ * Aceptar solicitud y asignar colaborador.
  */
 empresaRouter.patch('/:id/aceptar', validate(aceptarSolicitudSchema), ctrl.aceptar);
 

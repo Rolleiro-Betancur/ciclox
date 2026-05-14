@@ -102,15 +102,14 @@ const obtenerSolicitudDetalle = async (solicitudId, userId, rol) => {
        CASE WHEN s.empresa_id IS NOT NULL THEN
          json_build_object('id', pe.usuario_id::int, 'nombre_empresa', pe.nombre_empresa)
        END AS empresa,
-       -- recolector asignado
-       CASE WHEN s.recolector_id IS NOT NULL THEN
+       -- colaborador asignado
+       CASE WHEN s.colaborador_id IS NOT NULL THEN
          json_build_object(
-           'id',                   r.id::int,
-           'nombre',               r.nombre,
-           'foto_url',             r.foto_url,
-           'calificacion_promedio',r.calificacion_promedio
+           'id',                   c.id::int,
+           'nombre',               u_c.nombre,
+           'calificacion_promedio',c.calificacion_promedio
          )
-       END AS recolector,
+       END AS colaborador,
        -- dispositivos
        (
          SELECT json_agg(json_build_object(
@@ -126,7 +125,8 @@ const obtenerSolicitudDetalle = async (solicitudId, userId, rol) => {
        ) AS dispositivos
      FROM solicitudes_recoleccion s
      LEFT JOIN perfiles_empresa pe ON pe.usuario_id = s.empresa_id
-     LEFT JOIN recolectores r ON r.id = s.recolector_id
+     LEFT JOIN colaboradores c ON c.id = s.colaborador_id
+     LEFT JOIN usuarios u_c ON u_c.id = c.usuario_id
      WHERE s.id = $1`,
     [solicitudId],
   );
@@ -305,13 +305,13 @@ const cancelarSolicitud = async (solicitudId, ciudadanoId) => {
 };
 
 /**
- * El ciudadano califica al recolector después de una recolección completada.
+ * El ciudadano califica al colaborador después de una recolección completada.
  */
-const calificarRecolector = async (solicitudId, ciudadanoId, datos) => {
+const calificarColaborador = async (solicitudId, ciudadanoId, datos) => {
   const { estrellas, comentario = null } = datos;
 
   const { rows } = await db.query(
-    `SELECT id, estado, ciudadano_id, recolector_id FROM solicitudes_recoleccion WHERE id = $1`,
+    `SELECT id, estado, ciudadano_id, colaborador_id FROM solicitudes_recoleccion WHERE id = $1`,
     [solicitudId],
   );
   const sol = rows[0];
@@ -327,13 +327,13 @@ const calificarRecolector = async (solicitudId, ciudadanoId, datos) => {
       400,
     );
   }
-  if (!sol.recolector_id) {
-    throw opError('Esta solicitud no tiene un recolector asignado', 'SIN_RECOLECTOR', 400);
+  if (!sol.colaborador_id) {
+    throw opError('Esta solicitud no tiene un colaborador asignado', 'SIN_COLABORADOR', 400);
   }
 
   // Verificar que no haya calificado ya
   const { rows: existing } = await db.query(
-    `SELECT id FROM calificaciones_recolector WHERE solicitud_id = $1`,
+    `SELECT id FROM calificaciones_colaborador WHERE solicitud_id = $1`,
     [solicitudId],
   );
   if (existing.length > 0) {
@@ -341,10 +341,10 @@ const calificarRecolector = async (solicitudId, ciudadanoId, datos) => {
   }
 
   const { rows: cal } = await db.query(
-    `INSERT INTO calificaciones_recolector (solicitud_id, recolector_id, ciudadano_id, estrellas, comentario)
+    `INSERT INTO calificaciones_colaborador (solicitud_id, colaborador_id, ciudadano_id, estrellas, comentario)
      VALUES ($1, $2, $3, $4, $5)
      RETURNING id, estrellas, comentario, fecha`,
-    [solicitudId, sol.recolector_id, ciudadanoId, estrellas, comentario],
+    [solicitudId, sol.colaborador_id, ciudadanoId, estrellas, comentario],
   );
 
   return cal[0];
@@ -416,11 +416,11 @@ const listarSolicitudesEmpresa = async (empresaId, { estado, page, limit }) => {
 };
 
 /**
- * Acepta una solicitud y asigna un recolector de la empresa.
- * La empresa debe poseer el recolector indicado.
+ * Acepta una solicitud y asigna un colaborador de la empresa.
+ * La empresa debe poseer el colaborador indicado.
  */
 const aceptarSolicitud = async (solicitudId, empresaId, datos) => {
-  const { recolector_id, hora_estimada_inicio, hora_estimada_fin, comentario_empresa = null } =
+  const { colaborador_id, hora_estimada_inicio, hora_estimada_fin, comentario_empresa = null } =
     datos;
 
   const client = await db.getClient();
@@ -441,15 +441,15 @@ const aceptarSolicitud = async (solicitudId, empresaId, datos) => {
       throw opError('Esta solicitud ya fue tomada por otra empresa', 'SOLICITUD_TOMADA', 400);
     }
 
-    // Verificar que el recolector pertenece a la empresa y está activo
-    const { rows: rec } = await client.query(
-      `SELECT id FROM recolectores WHERE id = $1 AND empresa_id = $2 AND activo = TRUE`,
-      [recolector_id, empresaId],
+    // Verificar que el colaborador pertenece a la empresa y está activo
+    const { rows: colab } = await client.query(
+      `SELECT id FROM colaboradores WHERE id = $1 AND empresa_id = $2 AND activo = TRUE`,
+      [colaborador_id, empresaId],
     );
-    if (!rec[0]) {
+    if (!colab[0]) {
       throw opError(
-        'Recolector no encontrado o inactivo',
-        'RECOLECTOR_NO_VALIDO',
+        'Colaborador no encontrado o inactivo',
+        'COLABORADOR_NO_VALIDO',
         400,
       );
     }
@@ -458,14 +458,14 @@ const aceptarSolicitud = async (solicitudId, empresaId, datos) => {
       `UPDATE solicitudes_recoleccion SET
          estado               = 'ACEPTADA',
          empresa_id           = $1,
-         recolector_id        = $2,
+         colaborador_id       = $2,
          hora_estimada_inicio = $3,
          hora_estimada_fin    = $4,
          comentario_empresa   = $5,
          fecha_aceptacion     = NOW()
        WHERE id = $6
        RETURNING id::int, estado`,
-      [empresaId, recolector_id, hora_estimada_inicio, hora_estimada_fin, comentario_empresa, solicitudId],
+      [empresaId, colaborador_id, hora_estimada_inicio, hora_estimada_fin, comentario_empresa, solicitudId],
     );
 
     await client.query('COMMIT');
@@ -536,13 +536,13 @@ const rechazarSolicitud = async (solicitudId, empresaId, motivo_rechazo) => {
 };
 
 /**
- * Marca la solicitud en tránsito (recolector en camino).
+ * Marca la solicitud en tránsito (colaborador en camino).
  * Registra coordenadas y tiempo estimado en movimientos_raee.
  */
 const marcarEnTransito = async (solicitudId, empresaId, datos) => {
   const {
-    latitud_recolector = null,
-    longitud_recolector = null,
+    latitud_colaborador = null,
+    longitud_colaborador = null,
     tiempo_estimado_minutos = null,
   } = datos;
 
@@ -580,10 +580,10 @@ const marcarEnTransito = async (solicitudId, empresaId, datos) => {
         empresaId,
         solicitudId,
         tiempo_estimado_minutos
-          ? `Recolector en camino — ETA ${tiempo_estimado_minutos} min`
-          : 'Recolector en camino',
-        latitud_recolector,
-        longitud_recolector,
+          ? `Colaborador en camino — ETA ${tiempo_estimado_minutos} min`
+          : 'Colaborador en camino',
+        latitud_colaborador,
+        longitud_colaborador,
       ],
     );
   }
@@ -592,7 +592,7 @@ const marcarEnTransito = async (solicitudId, empresaId, datos) => {
   try {
     await notificacionesService.crearNotificacion({
       usuario_id: sol.ciudadano_id,
-      titulo: '¡El recolector está en camino!',
+      titulo: '¡El colaborador está en camino!',
       mensaje: datos.tiempo_estimado_minutos 
         ? `Llegará en aproximadamente ${datos.tiempo_estimado_minutos} minutos.`
         : 'Sigue la ubicación en tiempo real desde el mapa.',
@@ -607,8 +607,8 @@ const marcarEnTransito = async (solicitudId, empresaId, datos) => {
   return {
     id: Number(solicitudId),
     estado: 'EN_TRANSITO',
-    latitud_recolector,
-    longitud_recolector,
+    latitud_colaborador,
+    longitud_colaborador,
     tiempo_estimado_minutos,
   };
 };
@@ -717,7 +717,7 @@ module.exports = {
   obtenerSolicitudDetalle,
   crearSolicitud,
   cancelarSolicitud,
-  calificarRecolector,
+  calificarColaborador,
   // Empresa
   listarSolicitudesEmpresa,
   aceptarSolicitud,

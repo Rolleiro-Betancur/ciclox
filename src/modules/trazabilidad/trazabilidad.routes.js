@@ -18,7 +18,7 @@ router.get('/dispositivo/:dispositivoId', ctrl.obtenerMovimientos);
 
 /**
  * GET /api/trazabilidad/solicitud/:solicitudId/ubicacion
- * Ubicación en tiempo real del recolector (mapa).
+ * Ubicación en tiempo real del colaborador (mapa).
  */
 router.get('/solicitud/:solicitudId/ubicacion', ctrl.obtenerUbicacion);
 
@@ -28,9 +28,9 @@ router.get('/solicitud/:solicitudId/ubicacion', ctrl.obtenerUbicacion);
  */
 router.get('/solicitud/:solicitudId', ctrl.obtenerMovimientosSolicitud);
 
-// ── Router empresa: /api/empresa/trazabilidad ───────────────────────────────
+// ── Router empresa y colaborador: /api/empresa/trazabilidad ───────────────────────────────
 const empresaRouter = Router();
-empresaRouter.use(auth, checkRole('EMPRESA'));
+empresaRouter.use(auth, checkRole('EMPRESA', 'COLABORADOR'));
 
 /**
  * POST /api/empresa/trazabilidad
