@@ -54,6 +54,12 @@ const listarSolicitudesCiudadano = async (ciudadanoId, estado = null) => {
        s.hora_estimada_inicio,
        s.hora_estimada_fin,
        (
+         SELECT cantidad 
+         FROM movimientos_puntos 
+         WHERE solicitud_id = s.id AND tipo = 'GANADO_RECICLAJE'
+         LIMIT 1
+       ) AS puntos_otorgados,
+       (
          SELECT json_agg(json_build_object(
            'id',       d.id::int,
            'tipo',     d.tipo,
