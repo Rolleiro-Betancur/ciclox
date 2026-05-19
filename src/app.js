@@ -25,12 +25,16 @@ const reciclajesRoutes      = require('./modules/reciclajes/reciclajes.routes');
 const reportesRoutes        = require('./modules/reportes/reportes.routes');
 const { empresaRouter: empresaColaboradoresRoutes, colaboradorRouter: colaboradoresRoutes } =
   require('./modules/colaboradores/colaboradores.routes');
+const soporteRoutes             = require('./modules/soporte/soporte.routes');
 
 const app = express();
 
 // ── Seguridad y utilidades ────────────────────────────────────────────────────
 app.use(helmet());
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -64,6 +68,7 @@ app.use('/api/empresa/reciclajes',      reciclajesRoutes);
 app.use('/api/empresa/reportes',        reportesRoutes);
 app.use('/api/empresa/colaboradores',   empresaColaboradoresRoutes);
 app.use('/api/colaboradores',           colaboradoresRoutes);
+app.use('/api/soporte',                 soporteRoutes);
 
 // ── 404 ───────────────────────────────────────────────────────────────────────
 app.use((req, res) => {
