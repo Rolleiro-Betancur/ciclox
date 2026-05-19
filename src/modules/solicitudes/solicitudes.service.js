@@ -383,6 +383,7 @@ const listarSolicitudesEmpresa = async (empresaId, { estado, page, limit }) => {
        s.tipo_recoleccion,
        s.direccion_recoleccion,
        s.ciudad,
+       s.referencia,
        s.fecha_preferida,
        s.fecha_creacion,
        json_build_object(
