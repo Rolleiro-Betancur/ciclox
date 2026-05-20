@@ -245,6 +245,25 @@ const crearSolicitud = async (ciudadanoId, datos) => {
 
     await client.query('COMMIT');
 
+    // ── Notificar a todos los colaboradores activos ──
+    try {
+      const { rows: colabs } = await db.query(
+        'SELECT usuario_id FROM colaboradores WHERE activo = TRUE'
+      );
+      for (const colab of colabs) {
+        await notificacionesService.crearNotificacion({
+          usuario_id: colab.usuario_id,
+          titulo: 'Nueva solicitud disponible',
+          mensaje: `Hay una nueva solicitud de recolección en ${ciudad || 'tu ciudad'} (${direccion_recoleccion || 'Dirección no especificada'}).`,
+          tipo: 'NUEVA_SOLICITUD',
+          referencia_id: solicitud.id,
+          referencia_tipo: 'solicitud',
+        });
+      }
+    } catch (err) {
+      logger.error('Error enviando notificaciones a colaboradores (crearSolicitud):', err);
+    }
+
     return {
       id: Number(solicitud.id),
       estado: solicitud.estado,
@@ -436,7 +455,7 @@ const aceptarSolicitud = async (solicitudId, empresaId, datos) => {
 
     // Verificar solicitud existe y está PENDIENTE
     const { rows } = await client.query(
-      `SELECT id, estado, empresa_id FROM solicitudes_recoleccion WHERE id = $1 FOR UPDATE`,
+      `SELECT id, estado, empresa_id, direccion_recoleccion FROM solicitudes_recoleccion WHERE id = $1 FOR UPDATE`,
       [solicitudId],
     );
     const sol = rows[0];
@@ -450,7 +469,7 @@ const aceptarSolicitud = async (solicitudId, empresaId, datos) => {
 
     // Verificar que el colaborador pertenece a la empresa y está activo
     const { rows: colab } = await client.query(
-      `SELECT id FROM colaboradores WHERE id = $1 AND empresa_id = $2 AND activo = TRUE`,
+      `SELECT id, usuario_id FROM colaboradores WHERE id = $1 AND empresa_id = $2 AND activo = TRUE`,
       [colaborador_id, empresaId],
     );
     if (!colab[0]) {
@@ -494,7 +513,21 @@ const aceptarSolicitud = async (solicitudId, empresaId, datos) => {
         });
       }
     } catch (err) {
-      logger.error('Error enviando notificación (aceptarSolicitud):', err.message);
+      logger.error('Error enviando notificación al ciudadano (aceptarSolicitud):', err.message);
+    }
+
+    // ── Notificar al colaborador ──
+    try {
+      await notificacionesService.crearNotificacion({
+        usuario_id: colab[0].usuario_id,
+        titulo: 'Nueva solicitud asignada',
+        mensaje: `Se te ha asignado una nueva solicitud de recolección en ${sol.direccion_recoleccion || 'Dirección no especificada'}.`,
+        tipo: 'NUEVA_SOLICITUD',
+        referencia_id: solicitudId,
+        referencia_tipo: 'solicitud',
+      });
+    } catch (err) {
+      logger.error('Error enviando notificación al colaborador (aceptarSolicitud):', err);
     }
 
     return updated[0];

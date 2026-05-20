@@ -1,5 +1,6 @@
 // src/modules/soporte/soporte.controller.js
 const soporteService = require('./soporte.service');
+const { success } = require('../../utils/response');
 
 const enviarReporte = async (req, res, next) => {
   try {
@@ -22,4 +23,24 @@ const enviarReporte = async (req, res, next) => {
   }
 };
 
-module.exports = { enviarReporte };
+const crearSoporteEmpresa = async (req, res, next) => {
+  try {
+    const { nombre, apellido, asunto, descripcion } = req.body;
+    const empresaId = req.user.id; // viene de req.user (id del usuario autenticado)
+
+    const soporte = await soporteService.crearSoporteEmpresa({
+      empresaId,
+      nombre,
+      apellido,
+      asunto,
+      descripcion,
+    });
+
+    return success(res, soporte, 201);
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { enviarReporte, crearSoporteEmpresa };
+

@@ -1,5 +1,6 @@
 // src/modules/soporte/soporte.service.js
 const nodemailer = require('nodemailer');
+const db = require('../../config/database');
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
@@ -39,5 +40,17 @@ const enviarReporte = async ({ nombreColaborador, email, mensaje }) => {
   return { ok: true };
 };
 
-module.exports = { enviarReporte };
+const crearSoporteEmpresa = async ({ empresaId, nombre, apellido, asunto, descripcion }) => {
+  const query = `
+    INSERT INTO soporte_empresa (empresa_id, nombre, apellido, asunto, descripcion)
+    VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, empresa_id, nombre, apellido, asunto, descripcion, fecha_creacion, fecha_actualizacion;
+  `;
+  const values = [empresaId, nombre, apellido, asunto, descripcion];
+  const { rows } = await db.query(query, values);
+  return rows[0];
+};
+
+module.exports = { enviarReporte, crearSoporteEmpresa };
+
 

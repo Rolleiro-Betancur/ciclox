@@ -455,6 +455,25 @@ CREATE TABLE colaboradores (
 
 
 -- =====================================================
+-- SOPORTE EMPRESA
+-- =====================================================
+
+CREATE TABLE soporte_empresa (
+    id                   BIGSERIAL        PRIMARY KEY,
+    empresa_id           BIGINT           NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    nombre               VARCHAR(100)     NOT NULL,
+    apellido             VARCHAR(100)     NOT NULL,
+    asunto               VARCHAR(150)     NOT NULL,
+    descripcion          TEXT             NOT NULL,
+    fecha_creacion       TIMESTAMP        NOT NULL DEFAULT NOW(),
+    fecha_actualizacion  TIMESTAMP        NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_soporte_empresa_empresa_id ON soporte_empresa(empresa_id);
+
+
+
+-- =====================================================
 -- TRIGGERS: auto-actualizar fecha_actualizacion
 -- =====================================================
 
@@ -480,6 +499,10 @@ CREATE TRIGGER trg_solicitudes_updated
 
 CREATE TRIGGER trg_perfiles_empresa_updated
     BEFORE UPDATE ON perfiles_empresa
+    FOR EACH ROW EXECUTE FUNCTION actualizar_fecha_actualizacion();
+
+CREATE TRIGGER trg_soporte_empresa_updated
+    BEFORE UPDATE ON soporte_empresa
     FOR EACH ROW EXECUTE FUNCTION actualizar_fecha_actualizacion();
 
 
