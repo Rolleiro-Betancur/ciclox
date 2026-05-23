@@ -118,11 +118,23 @@ const enTransitoSchema = z.object({
 
 // ── Marcar recolectada (EMPRESA) ─────────────────────────────────────────────
 const recolectadaSchema = z.object({
-  puntos_otorgados: z
-    .number({ required_error: 'puntos_otorgados es requerido' })
-    .int()
-    .positive('Los puntos deben ser un número positivo'),
   evidencia_url: z.string().url().optional(),
+  puntos_otorgados: z
+    .coerce
+    .number()
+    .int()
+    .min(1, 'El puntaje mínimo es 1')
+    .max(10, 'El puntaje máximo es 10')
+    .optional(),
+});
+
+// ── Asignar puntos (EMPRESA) ──────────────────────────────────────────────────
+const asignarPuntosSchema = z.object({
+  puntos: z
+    .number({ required_error: 'Los puntos son requeridos' })
+    .int()
+    .min(1, 'El puntaje mínimo es 1')
+    .max(10, 'El puntaje máximo es 10'),
 });
 
 module.exports = {
@@ -132,4 +144,5 @@ module.exports = {
   rechazarSolicitudSchema,
   enTransitoSchema,
   recolectadaSchema,
+  asignarPuntosSchema,
 };

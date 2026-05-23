@@ -11,6 +11,7 @@ const {
   rechazarSolicitudSchema,
   enTransitoSchema,
   recolectadaSchema,
+  asignarPuntosSchema,
 } = require('./solicitudes.schema');
 
 // ── Router ciudadano: /api/solicitudes ────────────────────────────────────────
@@ -77,5 +78,10 @@ empresaRouter.patch('/:id/en-transito', validate(enTransitoSchema), ctrl.enTrans
  * PATCH /api/empresa/solicitudes/:id/recolectada
  */
 empresaRouter.patch('/:id/recolectada', validate(recolectadaSchema), ctrl.recolectada);
+
+/**
+ * PATCH /api/empresa/solicitudes/:id/asignar-puntos
+ */
+empresaRouter.patch('/:id/asignar-puntos', validate(asignarPuntosSchema), ctrl.asignarPuntos);
 
 module.exports = { router, empresaRouter };

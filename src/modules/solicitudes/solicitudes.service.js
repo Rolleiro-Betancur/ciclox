@@ -654,15 +654,14 @@ const marcarEnTransito = async (solicitudId, empresaId, datos) => {
 };
 
 /**
- * Marca la solicitud como recolectada y asigna puntos al ciudadano.
+ * Marca la solicitud como recolectada.
  * Transacción:
  *   1. UPDATE solicitudes_recoleccion → RECOLECTADA
  *   2. UPDATE dispositivos → RECOLECTADO
- *   3. INSERT movimientos_puntos (+puntos al ciudadano)
- *   4. INSERT movimientos_raee por dispositivo
+ *   3. INSERT movimientos_raee por dispositivo
  */
 const marcarRecolectada = async (solicitudId, empresaId, datos) => {
-  const { puntos_otorgados, evidencia_url = null } = datos;
+  const { evidencia_url = null, puntos_otorgados = null } = datos;
 
   const client = await db.getClient();
   try {
@@ -682,12 +681,14 @@ const marcarRecolectada = async (solicitudId, empresaId, datos) => {
       throw opError('La solicitud debe estar EN_TRANSITO para marcar como recolectada', 'ESTADO_INVALIDO', 400);
     }
 
+    const nuevoEstado = puntos_otorgados !== null ? 'COMPLETADA' : 'RECOLECTADA';
+
     // 1. Actualizar estado de la solicitud
     await client.query(
       `UPDATE solicitudes_recoleccion
-       SET estado = 'RECOLECTADA', fecha_recoleccion = NOW()
-       WHERE id = $1`,
-      [solicitudId],
+       SET estado = $1, fecha_recoleccion = NOW(), fecha_actualizacion = NOW()
+       WHERE id = $2`,
+      [nuevoEstado, solicitudId],
     );
 
     // 2. Actualizar dispositivos → RECOLECTADO + registrar trazabilidad
@@ -710,25 +711,31 @@ const marcarRecolectada = async (solicitudId, empresaId, datos) => {
       );
     }
 
-    // 3. Asignar puntos al ciudadano
-    const totalDispositivos = items.length;
-    const descripcion = `Reciclaje de ${totalDispositivos} dispositivo${totalDispositivos > 1 ? 's' : ''}`;
+    // 3. Si se otorgaron puntos, insertar en movimientos_puntos
+    if (puntos_otorgados !== null) {
+      const totalDispositivos = items.length;
+      const descripcion = `Puntos asignados por la empresa - Reciclaje de ${totalDispositivos} dispositivo${totalDispositivos > 1 ? 's' : ''}`;
 
-    await client.query(
-      `INSERT INTO movimientos_puntos (usuario_id, solicitud_id, cantidad, tipo, descripcion)
-       VALUES ($1, $2, $3, 'GANADO_RECICLAJE', $4)`,
-      [sol.ciudadano_id, solicitudId, puntos_otorgados, descripcion],
-    );
-    // El trigger trg_actualizar_puntos actualiza puntos_usuario automáticamente
+      await client.query(
+        `INSERT INTO movimientos_puntos (usuario_id, solicitud_id, cantidad, tipo, descripcion)
+         VALUES ($1, $2, $3, 'GANADO_RECICLAJE', $4)`,
+        [sol.ciudadano_id, solicitudId, puntos_otorgados, descripcion],
+      );
+    }
 
     await client.query('COMMIT');
 
     // ── Notificar al ciudadano ──
     try {
+      const tituloNotif = puntos_otorgados !== null ? '¡Has recibido puntos!' : '¡Dispositivos recolectados!';
+      const mensajeNotif = puntos_otorgados !== null 
+        ? `La empresa te ha asignado ${puntos_otorgados} puntos por tu recolección.`
+        : 'Tus dispositivos han sido recolectados por la empresa.';
+
       await notificacionesService.crearNotificacion({
         usuario_id: sol.ciudadano_id,
-        titulo: '¡Dispositivos recolectados!',
-        mensaje: `Has ganado ${puntos_otorgados} puntos por tu aporte al medio ambiente.`,
+        titulo: tituloNotif,
+        mensaje: mensajeNotif,
         tipo: 'SOLICITUD_RECOLECTADA',
         referencia_id: solicitudId,
         referencia_tipo: 'solicitud',
@@ -739,8 +746,87 @@ const marcarRecolectada = async (solicitudId, empresaId, datos) => {
 
     return {
       id: Number(solicitudId),
-      estado: 'RECOLECTADA',
-      puntos_otorgados,
+      estado: nuevoEstado,
+      puntos_otorgados: puntos_otorgados,
+      ciudadano_id: Number(sol.ciudadano_id),
+    };
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
+/**
+ * Asigna puntos de 1 a 10 a un usuario por una solicitud recolectada.
+ * Transacción:
+ *   1. UPDATE solicitudes_recoleccion → COMPLETADA
+ *   2. INSERT movimientos_puntos
+ */
+const asignarPuntos = async (solicitudId, empresaId, datos) => {
+  const { puntos } = datos;
+
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    const { rows } = await client.query(
+      `SELECT id, estado, empresa_id, ciudadano_id FROM solicitudes_recoleccion
+       WHERE id = $1 FOR UPDATE`,
+      [solicitudId],
+    );
+    const sol = rows[0];
+    if (!sol) throw opError('Solicitud no encontrada', 'NOT_FOUND', 404);
+    if (Number(sol.empresa_id) !== Number(empresaId)) {
+      throw opError('No autorizado para esta solicitud', 'FORBIDDEN', 403);
+    }
+    if (sol.estado !== 'RECOLECTADA') {
+      throw opError('La solicitud debe estar en estado RECOLECTADA para asignar puntos', 'ESTADO_INVALIDO', 400);
+    }
+
+    // 1. Actualizar estado de la solicitud a COMPLETADA
+    await client.query(
+      `UPDATE solicitudes_recoleccion
+       SET estado = 'COMPLETADA', fecha_actualizacion = NOW()
+       WHERE id = $1`,
+      [solicitudId],
+    );
+
+    // 2. Insertar movimiento de puntos
+    const { rows: items } = await client.query(
+      `SELECT dispositivo_id FROM solicitud_dispositivos WHERE solicitud_id = $1`,
+      [solicitudId],
+    );
+    const totalDispositivos = items.length;
+    const descripcion = `Puntos asignados por la empresa - Reciclaje de ${totalDispositivos} dispositivo${totalDispositivos > 1 ? 's' : ''}`;
+
+    await client.query(
+      `INSERT INTO movimientos_puntos (usuario_id, solicitud_id, cantidad, tipo, descripcion)
+       VALUES ($1, $2, $3, 'GANADO_RECICLAJE', $4)`,
+      [sol.ciudadano_id, solicitudId, puntos, descripcion],
+    );
+
+    await client.query('COMMIT');
+
+    // ── Notificar al ciudadano ──
+    try {
+      await notificacionesService.crearNotificacion({
+        usuario_id: sol.ciudadano_id,
+        titulo: '¡Has recibido puntos!',
+        mensaje: `La empresa te ha asignado ${puntos} puntos por tu recolección.`,
+        tipo: 'SOLICITUD_RECOLECTADA',
+        referencia_id: solicitudId,
+        referencia_tipo: 'solicitud',
+      });
+    } catch (err) {
+      logger.error('Error enviando notificación (asignarPuntos):', err.message);
+    }
+
+    return {
+      id: Number(solicitudId),
+      estado: 'COMPLETADA',
+      puntos_otorgados: puntos,
       ciudadano_id: Number(sol.ciudadano_id),
     };
   } catch (err) {
@@ -764,4 +850,5 @@ module.exports = {
   rechazarSolicitud,
   marcarEnTransito,
   marcarRecolectada,
+  asignarPuntos,
 };

@@ -98,7 +98,7 @@ const calificar = async (req, res, next) => {
     const solicitudId = parseId(req.params.id, res);
     if (!solicitudId) return;
 
-    const data = await service.calificarRecolector(solicitudId, req.user.id, req.body);
+    const data = await service.calificarColaborador(solicitudId, req.user.id, req.body);
     return success(res, data, 201);
   } catch (err) {
     logger.error('solicitudes.calificar: %o', err);
@@ -216,7 +216,7 @@ const enTransito = async (req, res, next) => {
 
 /**
  * PATCH /api/empresa/solicitudes/:id/recolectada
- * Marca solicitud como recolectada y asigna puntos.
+ * Marca solicitud como recolectada.
  */
 const recolectada = async (req, res, next) => {
   try {
@@ -228,6 +228,24 @@ const recolectada = async (req, res, next) => {
     return success(res, data);
   } catch (err) {
     logger.error('solicitudes.recolectada: %o', err);
+    next(err);
+  }
+};
+
+/**
+ * PATCH /api/empresa/solicitudes/:id/asignar-puntos
+ * Asigna puntos de 1 a 10 a la solicitud recolectada.
+ */
+const asignarPuntos = async (req, res, next) => {
+  try {
+    const solicitudId = parseId(req.params.id, res);
+    if (!solicitudId) return;
+
+    const { empresaId } = await getRoleIds(req.user);
+    const data = await service.asignarPuntos(solicitudId, empresaId, req.body);
+    return success(res, data);
+  } catch (err) {
+    logger.error('solicitudes.asignarPuntos: %o', err);
     next(err);
   }
 };
@@ -245,4 +263,5 @@ module.exports = {
   rechazar,
   enTransito,
   recolectada,
+  asignarPuntos,
 };

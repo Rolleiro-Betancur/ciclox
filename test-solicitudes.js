@@ -41,7 +41,7 @@ const c = {
 
 let passed = 0, failed = 0;
 let tokenEmpresa, tokenUsuario;
-let recolectorId, dispositivoId, dispositivo2Id, solicitudId, solicitudParaCancelarId;
+let colaboradorId, dispositivoId, dispositivo2Id, solicitudId, solicitudParaCancelarId;
 
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -85,13 +85,17 @@ async function setup() {
   assert('JWT empresa presente', !!tokenEmpresa);
   const empresaId = emp.body?.data?.usuario?.id;
 
-  // Crear recolector para la empresa
-  const rec = await req('POST', '/api/empresa/recolectores', {
-    nombre: 'Pedro Reco', telefono: '3009991111',
+  // Crear colaborador para la empresa
+  const colab = await req('POST', '/api/empresa/colaboradores', {
+    nombre: 'Pedro Colab',
+    email: `colab_${ts}@test.com`,
+    contrasena: 'Test1234!',
+    telefono: '3009991111',
+    tipo_documento: 'CEDULA_CIUDADANIA',
+    numero_documento: '1000999888'
   }, tokenEmpresa);
-  assert('Recolector creado 201', rec.status === 201, rec.body);
-  recolectorId = rec.body?.data?.id;
-  assert('recolectorId presente', typeof recolectorId === 'number', recolectorId);
+  colaboradorId = parseInt(colab.body?.data?.colaborador?.id, 10);
+  assert('colaboradorId presente', typeof colaboradorId === 'number' && !isNaN(colaboradorId), colaboradorId);
 
   // Registrar usuario
   const usr = await req('POST', '/api/auth/registro', {
@@ -293,9 +297,16 @@ async function testFlujoEmpresa() {
   const solicitudEnLista = lista.body?.data?.find(s => s.id === solicitudId || Number(s.id) === solicitudId);
   assert('Solicitud pendiente visible para empresa', !!solicitudEnLista, { solicitudId, data: lista.body?.data?.map(s => s.id) });
 
+  // Aceptar sin colaborador_id (debe fallar con 400 COLABORADOR_NO_VALIDO)
+  const sinColab = await req('PATCH', `/api/empresa/solicitudes/${solicitudId}/aceptar`, {
+    hora_estimada_inicio: '14:00',
+    hora_estimada_fin: '17:00',
+  }, tokenEmpresa);
+  assert('Aceptar sin colaborador_id → 400', sinColab.status === 400, sinColab.body);
+
   // Aceptar
   const aceptar = await req('PATCH', `/api/empresa/solicitudes/${solicitudId}/aceptar`, {
-    recolector_id: recolectorId,
+    colaborador_id: colaboradorId,
     hora_estimada_inicio: '14:00',
     hora_estimada_fin: '17:00',
     comentario_empresa: 'Pasaremos el viernes entre 2 y 5pm',
@@ -305,7 +316,7 @@ async function testFlujoEmpresa() {
 
   // Intentar aceptar de nuevo → error ESTADO_INVALIDO
   const dobleAceptar = await req('PATCH', `/api/empresa/solicitudes/${solicitudId}/aceptar`, {
-    recolector_id: recolectorId,
+    colaborador_id: colaboradorId,
     hora_estimada_inicio: '09:00',
     hora_estimada_fin: '12:00',
   }, tokenEmpresa);
@@ -313,22 +324,45 @@ async function testFlujoEmpresa() {
 
   // En tránsito
   const transito = await req('PATCH', `/api/empresa/solicitudes/${solicitudId}/en-transito`, {
-    latitud_recolector: 6.2476,
-    longitud_recolector: -75.5659,
+    latitud_colaborador: 6.2476,
+    longitud_colaborador: -75.5659,
     tiempo_estimado_minutos: 20,
   }, tokenEmpresa);
   assert('En tránsito → 200', transito.status === 200, transito.body);
   assert('Estado EN_TRANSITO', transito.body?.data?.estado === 'EN_TRANSITO', transito.body?.data?.estado);
-  assert('latitud presente', transito.body?.data?.latitud_recolector === 6.2476, transito.body?.data?.latitud_recolector);
+  assert('latitud presente', transito.body?.data?.latitud_colaborador === 6.2476, transito.body?.data?.latitud_colaborador);
 
   // Recolectada
   const recolect = await req('PATCH', `/api/empresa/solicitudes/${solicitudId}/recolectada`, {
-    puntos_otorgados: 1500,
     evidencia_url: 'https://cdn.ciclox.com/evidencias/foto1.jpg',
   }, tokenEmpresa);
   assert('Recolectada → 200', recolect.status === 200, recolect.body);
   assert('Estado RECOLECTADA', recolect.body?.data?.estado === 'RECOLECTADA', recolect.body?.data?.estado);
-  assert('puntos_otorgados: 1500', recolect.body?.data?.puntos_otorgados === 1500, recolect.body?.data?.puntos_otorgados);
+
+  // Asignar Puntos (Inválidos)
+  const badPtos1 = await req('PATCH', `/api/empresa/solicitudes/${solicitudId}/asignar-puntos`, {
+    puntos: 15,
+  }, tokenEmpresa);
+  assert('Asignar puntos > 10 → 422', badPtos1.status === 422, badPtos1.status);
+
+  const badPtos2 = await req('PATCH', `/api/empresa/solicitudes/${solicitudId}/asignar-puntos`, {
+    puntos: 0,
+  }, tokenEmpresa);
+  assert('Asignar puntos < 1 → 422', badPtos2.status === 422, badPtos2.status);
+
+  // Asignar Puntos (Válidos: e.g. 8 puntos)
+  const ptosValidos = await req('PATCH', `/api/empresa/solicitudes/${solicitudId}/asignar-puntos`, {
+    puntos: 8,
+  }, tokenEmpresa);
+  assert('Asignar puntos válidos → 200', ptosValidos.status === 200, ptosValidos.body);
+  assert('Estado COMPLETADA', ptosValidos.body?.data?.estado === 'COMPLETADA', ptosValidos.body?.data?.estado);
+  assert('puntos_otorgados es 8', ptosValidos.body?.data?.puntos_otorgados === 8, ptosValidos.body?.data?.puntos_otorgados);
+
+  // Intentar asignar puntos otra vez → 400 (porque ya no está en RECOLECTADA)
+  const doblePtos = await req('PATCH', `/api/empresa/solicitudes/${solicitudId}/asignar-puntos`, {
+    puntos: 5,
+  }, tokenEmpresa);
+  assert('Doble asignar puntos → 400', doblePtos.status === 400, doblePtos.status);
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -392,20 +426,13 @@ async function testSeguridad() {
 async function testEmpresaValidaciones() {
   section('EMPRESA — validaciones de schemas');
 
-  // Aceptar sin recolector_id
-  const sinRec = await req('PATCH', '/api/empresa/solicitudes/999/aceptar', {
-    hora_estimada_inicio: '09:00',
-    hora_estimada_fin: '12:00',
-  }, tokenEmpresa);
-  assert('Aceptar sin recolector_id → 422', sinRec.status === 422, sinRec.status);
-
   // Rechazar sin motivo
   const sinMotivo = await req('PATCH', '/api/empresa/solicitudes/999/rechazar', {}, tokenEmpresa);
   assert('Rechazar sin motivo → 422', sinMotivo.status === 422, sinMotivo.status);
 
-  // Recolectada con puntos negativos
-  const ptosNeg = await req('PATCH', '/api/empresa/solicitudes/999/recolectada', {
-    puntos_otorgados: -100,
+  // Asignar puntos con valor negativo
+  const ptosNeg = await req('PATCH', '/api/empresa/solicitudes/999/asignar-puntos', {
+    puntos: -5,
   }, tokenEmpresa);
   assert('puntos negativos → 422', ptosNeg.status === 422, ptosNeg.status);
 }
