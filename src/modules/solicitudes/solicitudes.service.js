@@ -53,12 +53,12 @@ const listarSolicitudesCiudadano = async (ciudadanoId, estado = null) => {
        s.fecha_preferida,
        s.hora_estimada_inicio,
        s.hora_estimada_fin,
-       (
+       COALESCE((
          SELECT cantidad 
          FROM movimientos_puntos 
          WHERE solicitud_id = s.id AND tipo = 'GANADO_RECICLAJE'
          LIMIT 1
-       ) AS puntos_otorgados,
+       ), 0)::int AS puntos_otorgados,
        (
          SELECT json_agg(json_build_object(
            'id',       d.id::int,
@@ -104,6 +104,12 @@ const obtenerSolicitudDetalle = async (solicitudId, userId, rol) => {
        s.fecha_aceptacion,
        s.fecha_recoleccion,
        s.ciudadano_id::int,
+       COALESCE((
+         SELECT cantidad 
+         FROM movimientos_puntos 
+         WHERE solicitud_id = s.id AND tipo = 'GANADO_RECICLAJE'
+         LIMIT 1
+       ), 0)::int AS puntos_otorgados,
        -- empresa asignada
        CASE WHEN s.empresa_id IS NOT NULL THEN
          json_build_object('id', pe.usuario_id::int, 'nombre_empresa', pe.nombre_empresa)
@@ -405,6 +411,12 @@ const listarSolicitudesEmpresa = async (empresaId, { estado, page, limit }) => {
        s.referencia,
        s.fecha_preferida,
        s.fecha_creacion,
+       COALESCE((
+         SELECT cantidad 
+         FROM movimientos_puntos 
+         WHERE solicitud_id = s.id AND tipo = 'GANADO_RECICLAJE'
+         LIMIT 1
+       ), 0)::int AS puntos_otorgados,
        json_build_object(
          'id',       u.id::int,
          'nombre',   u.nombre,
