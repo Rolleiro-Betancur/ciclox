@@ -196,9 +196,120 @@ const toggleActivo = async (colaboradorId, empresaId, activo) => {
   return { message: `Colaborador ${activo ? 'activado' : 'desactivado'} correctamente` };
 };
 
+/**
+ * Actualiza los datos de un colaborador.
+ * Solo la empresa propietaria del colaborador puede hacerlo.
+ *
+ * @param {number} colaboradorId - id de la tabla colaboradores
+ * @param {number} empresaId     - id de la empresa autenticada
+ * @param {object} datos         - campos a actualizar
+ */
+const actualizarColaborador = async (colaboradorId, empresaId, datos) => {
+  const { nombre, telefono, contrasena, tipo_documento, numero_documento } = datos;
+
+  // 1. Verificar propiedad y obtener usuario_id
+  const { rows: colabRows } = await db.query(
+    'SELECT id, usuario_id FROM colaboradores WHERE id = $1 AND empresa_id = $2',
+    [colaboradorId, empresaId],
+  );
+
+  if (colabRows.length === 0) {
+    throw opError('Colaborador no encontrado o no pertenece a tu empresa', 'NOT_FOUND', 404);
+  }
+
+  const { usuario_id } = colabRows[0];
+
+  // 2. Transacción para actualizar usuarios y colaboradores
+  const client = await db.getClient();
+  try {
+    await client.query('BEGIN');
+
+    // 2a. Actualizar tabla usuarios (si hay campos para actualizar)
+    const userFields = [];
+    const userValues = [];
+    let userIdx = 1;
+
+    if (nombre !== undefined) {
+      userFields.push(`nombre = $${userIdx++}`);
+      userValues.push(nombre);
+    }
+    if (telefono !== undefined) {
+      userFields.push(`telefono = $${userIdx++}`);
+      userValues.push(telefono);
+    }
+    if (contrasena !== undefined) {
+      const contrasena_hash = await hashPassword(contrasena);
+      userFields.push(`contrasena = $${userIdx++}`);
+      userValues.push(contrasena_hash);
+    }
+
+    if (userFields.length > 0) {
+      userValues.push(usuario_id);
+      await client.query(
+        `UPDATE usuarios
+         SET ${userFields.join(', ')}, fecha_actualizacion = NOW()
+         WHERE id = $${userIdx}`,
+        userValues,
+      );
+    }
+
+    // 2b. Actualizar tabla colaboradores (si hay campos para actualizar)
+    const colabFields = [];
+    const colabValues = [];
+    let colabIdx = 1;
+
+    if (tipo_documento !== undefined) {
+      colabFields.push(`tipo_documento = $${colabIdx++}`);
+      colabValues.push(tipo_documento);
+    }
+    if (numero_documento !== undefined) {
+      colabFields.push(`numero_documento = $${colabIdx++}`);
+      colabValues.push(numero_documento);
+    }
+
+    if (colabFields.length > 0) {
+      colabValues.push(colaboradorId);
+      await client.query(
+        `UPDATE colaboradores
+         SET ${colabFields.join(', ')}, fecha_actualizacion = NOW()
+         WHERE id = $${colabIdx}`,
+        colabValues,
+      );
+    }
+
+    await client.query('COMMIT');
+
+    // 3. Retornar el colaborador actualizado con los datos combinados
+    const { rows: updatedRows } = await db.query(
+      `SELECT
+         c.id,
+         c.tipo_documento,
+         c.numero_documento,
+         c.activo,
+         c.fecha_registro,
+         c.fecha_actualizacion,
+         u.nombre,
+         u.email,
+         u.telefono
+       FROM colaboradores c
+       JOIN usuarios u ON u.id = c.usuario_id
+       WHERE c.id = $1`,
+      [colaboradorId],
+    );
+
+    return updatedRows[0];
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+};
+
 module.exports = {
   registrarColaborador,
   obtenerColaboradores,
   obtenerPerfil,
   toggleActivo,
+  actualizarColaborador,
 };

@@ -44,4 +44,15 @@ const toggleActivo = async (req, res, next) => {
   }
 };
 
-module.exports = { registrar, listar, perfil, toggleActivo };
+// ── PUT /api/empresa/colaboradores/:id ─────────────────────────────────────────
+const actualizar = async (req, res, next) => {
+  try {
+    const colaboradorId = parseInt(req.params.id, 10);
+    const result = await colaboradoresService.actualizarColaborador(colaboradorId, req.user.id, req.body);
+    return success(res, result, 200);
+  } catch (err) {
+    next(err);
+  }
+};
+
+module.exports = { registrar, listar, perfil, toggleActivo, actualizar };

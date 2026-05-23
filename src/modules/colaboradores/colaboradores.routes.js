@@ -7,6 +7,7 @@ const checkRole        = require('../../middlewares/role.middleware');
 const {
   registrarColaboradorSchema,
   toggleActivoSchema,
+  actualizarColaboradorSchema,
 } = require('./colaboradores.schema');
 
 // ── Router empresa (prefijo: /api/empresa/colaboradores) ──────────────────────
@@ -36,6 +37,15 @@ empresaRouter.patch(
   checkRole('EMPRESA'),
   validate(toggleActivoSchema),
   colaboradoresController.toggleActivo,
+);
+
+// PUT /api/empresa/colaboradores/:id  🔒 EMPRESA
+empresaRouter.put(
+  '/:id',
+  authMiddleware,
+  checkRole('EMPRESA'),
+  validate(actualizarColaboradorSchema),
+  colaboradoresController.actualizar,
 );
 
 // ── Router colaborador (prefijo: /api/colaboradores) ──────────────────────────
